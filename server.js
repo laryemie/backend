@@ -26,7 +26,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: 'https://jobskill-app.netlify.app',
+  origin: ['https://jobskill-app.netlify.app', 'http://localhost:8888'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'x-auth-token'],
 }));
