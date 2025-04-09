@@ -16,7 +16,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'https://jobskillapp.netlify.app',
+    origin: ['https://jobskill-app.netlify.app', 'http://localhost:3000'],
     methods: ['GET', 'POST'],
   },
 });
@@ -26,7 +26,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: ['https://jobskill-app.netlify.app', 'http://localhost:8888'],
+  origin: ['https://jobskill-app.netlify.app', 'http://localhost:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'x-auth-token'],
 }));
