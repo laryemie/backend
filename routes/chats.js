@@ -1,49 +1,56 @@
-// routes/chats.js
+// job-skill-backend/routes/chats.js
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const Chat = require('../models/Chat');
+const User = require('../models/User');
 
-// Start a chat
+// POST /api/chats - Create a chat
 router.post('/', auth, async (req, res) => {
-  const { workerId } = req.body;
+  const { participantIds } = req.body;
   try {
-    let chat = await Chat.findOne({ client: req.user.id, worker: workerId });
-    if (!chat) {
-      chat = new Chat({ client: req.user.id, worker: workerId, messages: [] });
-      await chat.save();
+    const participants = [...new Set([...participantIds, req.user.id])];
+    const users = await User.find({ _id: { $in: participants } });
+    if (users.length !== participants.length) {
+      return res.status(400).json({ msg: 'One or more participants not found' });
     }
-    res.json(chat);
-  } catch (err) {
-    res.status(500).json({ msg: 'Server error' });
-  }
-});
 
-// Send a message
-router.post('/:chatId/message', auth, async (req, res) => {
-  const { message } = req.body;
-  try {
-    const chat = await Chat.findById(req.params.chatId);
-    if (!chat) return res.status(404).json({ msg: 'Chat not found' });
-
-    chat.messages.push({ sender: req.user.id, message });
+    const chat = new Chat({
+      participants,
+      messages: [],
+    });
     await chat.save();
     res.json(chat);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// Get chats for a user
+// GET /api/chats - Get all chats for the user
 router.get('/', auth, async (req, res) => {
   try {
-    const chats = await Chat.find({
-      $or: [{ client: req.user.id }, { worker: req.user.id }],
-    })
-      .populate('client')
-      .populate('worker');
+    const chats = await Chat.find({ participants: req.user.id })
+      .populate('participants', ['username', 'email']);
     res.json(chats);
   } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// GET /api/chats/:id - Get a specific chat
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.id)
+      .populate('participants', ['username', 'email']);
+    if (!chat) return res.status(404).json({ msg: 'Chat not found' });
+    if (!chat.participants.some(p => p._id.toString() === req.user.id)) {
+      return res.status(403).json({ msg: 'Access denied' });
+    }
+    res.json(chat);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ msg: 'Server error' });
   }
 });

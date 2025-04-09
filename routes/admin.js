@@ -3,66 +3,69 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const User = require('../models/User');
+const Worker = require('../models/Worker');
 const Request = require('../models/Request');
 
 // Middleware to check if user is admin
-const isAdmin = (req, res, next) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ msg: 'Access denied' });
+const adminMiddleware = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Access denied' });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
   }
-  next();
 };
 
-// Get all users
-router.get('/users', auth, isAdmin, async (req, res) => {
+// GET /api/admin/users - Get all users (admin only)
+router.get('/users', auth, adminMiddleware, async (req, res) => {
   try {
     const users = await User.find();
     res.json(users);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// Delete a user
-router.delete('/users/:id', auth, isAdmin, async (req, res) => {
-  try {
-    await User.findByIdAndDelete(req.params.id);
-    res.json({ msg: 'User deleted' });
-  } catch (err) {
-    res.status(500).json({ msg: 'Server error' });
-  }
-});
-
-// Get all requests (jobs)
-router.get('/jobs', auth, isAdmin, async (req, res) => {
-  try {
-    const requests = await Request.find().populate('client');
-    res.json(requests);
-  } catch (err) {
-    res.status(500).json({ msg: 'Server error' });
-  }
-});
-
-// Delete a job
-router.delete('/jobs/:id', auth, isAdmin, async (req, res) => {
-  try {
-    await Request.findByIdAndDelete(req.params.id);
-    res.json({ msg: 'Job deleted' });
-  } catch (err) {
-    res.status(500).json({ msg: 'Server error' });
-  }
-});
-
-// Mark a user as fraudulent
-router.put('/users/:id/fraud', auth, isAdmin, async (req, res) => {
+// DELETE /api/admin/users/:id - Delete a user (admin only)
+router.delete('/users/:id', auth, adminMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: 'User not found' });
 
-    user.enabled = false;
-    await user.save();
-    res.json({ msg: 'User marked as fraudulent' });
+    await user.remove();
+    await Worker.deleteMany({ user: req.params.id }); // Delete associated worker profile
+    await Request.deleteMany({ client: req.params.id }); // Delete associated requests
+    res.json({ msg: 'User deleted' });
   } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// GET /api/admin/workers - Get all workers (admin only)
+router.get('/workers', auth, adminMiddleware, async (req, res) => {
+  try {
+    const workers = await Worker.find().populate('user', ['username', 'email']);
+    res.json(workers);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// GET /api/admin/requests - Get all requests (admin only)
+router.get('/requests', auth, adminMiddleware, async (req, res) => {
+  try {
+    const requests = await Request.find()
+      .populate('client', ['username', 'email'])
+      .populate('typeOfService');
+    res.json(requests);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
