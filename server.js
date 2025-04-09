@@ -16,7 +16,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*', // Update to your frontend URL in production (e.g., https://job-skill-frontend.netlify.app)
+    origin: 'https://jobskillapp.netlify.app',
     methods: ['GET', 'POST'],
   },
 });
@@ -25,36 +25,51 @@ const io = new Server(server, {
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'https://jobskill-app.netlify.app',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'x-auth-token'],
+}));
 app.use(express.json());
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/requests', requestRoutes);
-app.use('/api/workers', workerRoutes);
-app.use('/api/chats', chatRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/auth', authRoutes);      // Line 34
+app.use('/api/requests', requestRoutes); // Line 35
+app.use('/api/workers', workerRoutes);   // Line 36 (previously the error line)
+app.use('/api/chats', chatRoutes);       // Line 37
+app.use('/api/payments', paymentRoutes); // Line 38
+app.use('/api/admin', adminRoutes);      // Line 39
 
 // Socket.IO for real-time chat
 io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id);
+
   socket.on('joinChat', (chatId) => {
     socket.join(chatId);
+    console.log(`Client ${socket.id} joined chat ${chatId}`);
   });
 
   socket.on('sendMessage', async ({ chatId, message, senderId }) => {
     try {
       const Chat = require('./models/Chat');
       const chat = await Chat.findById(chatId);
-      if (!chat) return;
+      if (!chat) {
+        console.log(`Chat ${chatId} not found`);
+        return;
+      }
 
       chat.messages.push({ sender: senderId, message });
       await chat.save();
 
       io.to(chatId).emit('receiveMessage', { sender: senderId, message });
+      console.log(`Message sent to chat ${chatId}: ${message}`);
     } catch (err) {
-      console.error(err);
+      console.error('Error in sendMessage:', err);
     }
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
   });
 });
 
